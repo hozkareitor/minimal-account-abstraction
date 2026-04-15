@@ -1,0 +1,12 @@
+# Foundry
+out/
+cache/
+broadcast/
+.env
+.DS_Store
+*.swp
+*.swo
+*~
+*.log
+node_modules/
+lib/
