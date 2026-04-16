@@ -2,7 +2,12 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-remappings = ['@openzeppelin/contracts=lib/openzeppelin-contracts/contracts']
+remappings = [
+    '@openzeppelin/contracts=lib/openzeppelin-contracts/contracts',
+    'account-abstraction=lib/account-abstraction/contracts',
+    'era-contracts=lib/era-contracts',
+    'foundry-era-contracts=lib/foundry-era-contracts'
+]
 via-ir = true
 optimizer = true
 fs_permissions = [
@@ -10,3 +15,12 @@ fs_permissions = [
     { access = "read", path = "./reports" },
 ]
 
+# Configuración para zkSync (opcional, pero útil)
+[profile.zksync]
+src = "src"
+out = "out-zksync"
+libs = ["lib"]
+remappings = [
+    '@openzeppelin/contracts=lib/openzeppelin-contracts/contracts',
+    'foundry-era-contracts=lib/foundry-era-contracts'
+]
