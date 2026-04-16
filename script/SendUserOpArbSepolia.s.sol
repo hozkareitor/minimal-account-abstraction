@@ -7,26 +7,38 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MinimalAccount} from "src/ethereum/MinimalAccount.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+/**
+ * @title SendUserOpArbSepolia
+ * @author Hozkareitor
+ * @notice Builds, signs, and sends a UserOperation through the EntryPoint on Arbitrum Sepolia.
+ * @dev The operation performs an ERC20 approve from the MinimalAccount to a fixed spender.
+ *      Requires environment variables: PRIVATE_KEY_BURNER, ENTRY_POINT_ADDRESS, MINIMAL_ACCOUNT_ADDRESS, ERC20_MOCK_ADDRESS.
+ */
 contract SendUserOpArbSepolia is Script {
     using MessageHashUtils for bytes32;
 
+    /**
+     * @notice Main entry point: generates the UserOperation and sends it to the EntryPoint.
+     * @dev Fetches nonce, builds calldata, signs, and calls handleOps.
+     *      The beneficiary is set to the burner account.
+     */
     function run() external {
+        // Read environment variables
         uint256 deployerKey = vm.envUint("PRIVATE_KEY_BURNER");
         address entryPointAddr = vm.envAddress("ENTRY_POINT_ADDRESS");
         address minimalAccountAddr = vm.envAddress("MINIMAL_ACCOUNT_ADDRESS");
         address erc20MockAddr = vm.envAddress("ERC20_MOCK_ADDRESS");
         address deployer = vm.addr(deployerKey);
 
-        // Parámetros de la operación
-        address spender = 0x9EA9b0cc1919def1A3CfAEF4F7A66eE3c36F86fC; // dirección cualquiera
-        uint256 amount = 1e18; // aprobar 1 token
+        // Approve parameters
+        address spender = 0x9EA9b0cc1919def1A3CfAEF4F7A66eE3c36F86fC;
+        uint256 amount = 1e18;
 
-        // 1. Calldata para el approve
+        // Encode the internal call: approve(spender, amount)
         bytes memory functionData = abi.encodeWithSelector(IERC20.approve.selector, spender, amount);
 
-        // 2. Calldata para execute() de MinimalAccount
+        // Encode the call to MinimalAccount.execute()
         bytes memory executeCallData = abi.encodeWithSelector(
             MinimalAccount.execute.selector,
             erc20MockAddr,
@@ -34,19 +46,19 @@ contract SendUserOpArbSepolia is Script {
             functionData
         );
 
-        // 3. Obtener nonce actual de la MinimalAccount
+        // Get current nonce of the account
         uint256 nonce = IEntryPoint(entryPointAddr).getNonce(minimalAccountAddr, 0);
 
-        // 4. Construir UserOperation sin firmar
+        // Build unsigned UserOperation
         PackedUserOperation memory userOp = _generateUnsignedUserOperation(executeCallData, minimalAccountAddr, nonce);
 
-        // 5. Calcular hash y firmar con la clave del owner (el mismo burner)
+        // Compute hash and sign with burner key
         bytes32 userOpHash = IEntryPoint(entryPointAddr).getUserOpHash(userOp);
         bytes32 digest = userOpHash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(deployerKey, digest);
         userOp.signature = abi.encodePacked(r, s, v);
 
-        // 6. Enviar al EntryPoint
+        // Pack and send
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
         ops[0] = userOp;
 
@@ -57,6 +69,13 @@ contract SendUserOpArbSepolia is Script {
         console2.log("UserOperation submitted. Beneficiary:", deployer);
     }
 
+    /**
+     * @notice Generates an unsigned PackedUserOperation (without signature).
+     * @param callData The encoded call to MinimalAccount.execute().
+     * @param sender The MinimalAccount address.
+     * @param nonce Current nonce of the account.
+     * @return userOp The PackedUserOperation struct ready to be signed.
+     */
     function _generateUnsignedUserOperation(
         bytes memory callData,
         address sender,
@@ -65,7 +84,7 @@ contract SendUserOpArbSepolia is Script {
         uint128 verificationGasLimit = 1_000_000;
         uint128 callGasLimit = 1_000_000;
         uint128 maxPriorityFeePerGas = 1_000_000_000; // 1 gwei
-        uint128 maxFeePerGas = 2_000_000_000; // 2 gwei
+        uint128 maxFeePerGas = 2_000_000_000;         // 2 gwei
 
         return PackedUserOperation({
             sender: sender,
